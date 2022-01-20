@@ -9,6 +9,27 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
+
+cfg_if::cfg_if! {
+  if #[cfg(all(
+      not(feature = "unknown-ci"),
+      any(
+          target_os = "freebsd",
+          target_os = "linux",
+          target_os = "android",
+          target_os = "macos",
+          target_os = "ios",
+      )
+  ))] {
+      use libc::pid_t;
+
+      type PidT = pid_t;
+  } else {
+      type PidT = usize;
+  }
+}
+
+
 /// Run a process and monitor the memory usage of the process tree, logging to a
 /// file or stdout. When a high water mark is reached, depending on options
 /// provided, the process tree and memory usage will be written to output.
@@ -57,7 +78,7 @@ async fn main(args: ProgramArgs) -> Result<(), Box<dyn std::error::Error>> {
 
   let pid = spawned_process
     .id()
-    .expect("Expected process to have a valid pid") as usize;
+    .expect("Expected process to have a valid pid") as PidT;
 
   let output_file = get_file(args.out.as_deref()).await?;
   let handle = tokio::task::spawn(measure_memory(
@@ -93,7 +114,7 @@ async fn get_file(options: Option<&str>) -> Result<Option<File>, Box<dyn std::er
 }
 
 async fn measure_memory(
-  pid: usize,
+  pid: PidT,
   child_token: CancellationToken,
   output_file: Option<File>,
   threshold_options: ThresholdOptions,
@@ -104,14 +125,14 @@ async fn measure_memory(
 }
 
 async fn measure_memory_internal(
-  pid: usize,
+  pid: PidT,
   child_token: CancellationToken,
   mut output_file: Option<File>,
   threshold_options: ThresholdOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let mut timer = time::interval(Duration::from_millis(100));
   let mut sys = System::new_all();
-  let pid = (pid as usize).into();
+  let pid = (pid as PidT).into();
   let mut high_water_mark_kib: u64 = 0;
 
   loop {
