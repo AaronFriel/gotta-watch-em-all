@@ -55,7 +55,6 @@ async fn main(args: ProgramArgs) -> Result<(), Box<dyn std::error::Error>> {
   let token = CancellationToken::new();
   let child_token = token.child_token();
 
-  eprintln!("🌊");
   let pid = spawned_process
     .id()
     .expect("Expected process to have a valid pid") as usize;
@@ -110,12 +109,9 @@ async fn measure_memory_internal(
   mut output_file: Option<File>,
   threshold_options: ThresholdOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
-  dbg!(pid);
-  eprintln!("🌊");
   let mut timer = time::interval(Duration::from_millis(100));
   let mut sys = System::new_all();
   let pid = (pid as usize).into();
-  dbg!(pid);
   let mut high_water_mark_kib: u64 = 0;
 
   loop {
@@ -155,6 +151,8 @@ async fn measure_memory_internal(
   }
 }
 
+const SPACE: &str = "";
+
 #[derive(Default)]
 pub struct ProcessEntry<'a> {
   process: Option<&'a Process>,
@@ -168,6 +166,17 @@ async fn print_stats<'a>(
   output: &mut Option<File>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let mut buffer = String::new();
+
+  let title = "process";
+  let private_kib = "private ";
+  let aggregate_kib = "total ";
+  let depth = 0;
+  writeln!(
+    buffer,
+    "🌊 {SPACE:<indent$}{title:<28}{SPACE:<width$}{private_kib:>9}KiB {aggregate_kib:>9}KiB",
+    indent = depth * 2,
+    width = 30 - depth * 2,
+  )?;
 
   // We've reached a high water mark, print useful info. First we'll get all the
   // processes and their individual and aggregate memories:
@@ -195,7 +204,6 @@ fn record_high_water_mark_entry(
   let name = process.name();
   let pid = process.pid();
   let title = format!("{name} ({pid})");
-  const SPACE: &str = "";
   let MemoryStats {
     private_kib,
     aggregate_kib,
