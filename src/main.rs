@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, time::Duration};
+use std::{collections::HashMap, fmt::Write, time::Duration, path::Path};
 
 use structopt::{paw, StructOpt};
 use sysinfo::{Pid, Process, ProcessExt, System, SystemExt};
@@ -201,7 +201,8 @@ fn record_high_water_mark_entry(
   depth: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let process = entry.process.unwrap();
-  let name = process.name();
+  let process_exe = process.exe();
+  let name = Path::new(process_exe).file_name().map(|x| x.to_str()).flatten().unwrap_or(process.name());
   let pid = process.pid();
   let title = format!("{name} ({pid})");
   let MemoryStats {
