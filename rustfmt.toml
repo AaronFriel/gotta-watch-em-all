@@ -1,0 +1,10 @@
+version = "Two"
+tab_spaces = 2
+merge_derives = false
+
+imports_granularity = "Crate"
+reorder_impl_items = true
+use_field_init_shorthand = true
+wrap_comments = true
+group_imports = "StdExternalCrate"
+format_strings = true
