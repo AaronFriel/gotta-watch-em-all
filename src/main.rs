@@ -54,12 +54,12 @@ pub struct ProgramArgs {
 
 #[derive(StructOpt, Debug, Clone)]
 struct ThresholdOptions {
-  /// The minimum increase, as a percentage, over the high water mark required
+  /// The minimum increase, in kilobytes, over the high water mark required
   /// to output stats.
   #[structopt(short = "a", long, default_value = "1024")]
   threshold_absolute: u64,
 
-  /// The minimum increase, in kilobytes, over the high water mark required to
+  /// The minimum increase, as a percentage, over the high water mark required to
   /// output stats.
   #[structopt(short = "r", long, default_value = "0")]
   threshold_relative: f64,
