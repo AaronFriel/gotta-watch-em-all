@@ -3,7 +3,7 @@
 	<assemblyIdentity
 		type="win32"
 		name="GottaWatchEmAll.Cli.gottawatchemall"
-		version="1.20.4.0"
+		version="0.2.0.0"
 	/>
 
 	<trustInfo>
