@@ -1,11 +1,15 @@
 [package]
 name = "gotta-watch-em-all"
 version = "0.2.1"
-edition = "2021"
-description = "A process tree memory monitor"
-license = "Apache-2.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["Aaron Friel <mayreply@aaronfriel.com>"]
+license = "Apache-2.0"
+description = "A process tree memory monitor"
+keywords = ["cli", "process", "monitor"]
+categories = ["command-line-utilities"]
+repository = "https://github.com/aaronfriel/gotta-watch-em-all"
+
+edition = "2021"
 
 [dependencies]
 cfg-if = "1.0.0"
