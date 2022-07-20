@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, time::Duration, path::Path};
+use std::{collections::HashMap, fmt::Write, path::Path, time::Duration};
 
 use structopt::{paw, StructOpt};
 use sysinfo::{Pid, Process, ProcessExt, System, SystemExt};
@@ -8,7 +8,6 @@ use tokio::{
   select, time,
 };
 use tokio_util::sync::CancellationToken;
-
 
 cfg_if::cfg_if! {
   if #[cfg(all(
@@ -28,7 +27,6 @@ cfg_if::cfg_if! {
       type PidT = usize;
   }
 }
-
 
 /// Run a process and monitor the memory usage of the process tree, logging to a
 /// file or stdout. When a high water mark is reached, depending on options
@@ -59,8 +57,8 @@ struct ThresholdOptions {
   #[structopt(short = "a", long, default_value = "1024")]
   threshold_absolute: u64,
 
-  /// The minimum increase, as a percentage, over the high water mark required to
-  /// output stats.
+  /// The minimum increase, as a percentage, over the high water mark required
+  /// to output stats.
   #[structopt(short = "r", long, default_value = "0")]
   threshold_relative: f64,
 }
@@ -104,10 +102,9 @@ async fn get_file(options: Option<&str>) -> Result<Option<File>, Box<dyn std::er
       tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(path.clone())
+        .open(path)
         .await?,
-    )
-    .into(),
+    ),
   };
 
   Ok(file)
@@ -156,10 +153,11 @@ async fn measure_memory_internal(
         );
         high_water_mark_kib = aggregate_kib;
 
-        match print_stats(pid, &process_children, &process_memory, &mut output_file).await {
-          Err(err) => eprintln!("Error: {:?}", err),
-          _ => {}
-        };
+        if let Err(err) =
+          print_stats(pid, &process_children, &process_memory, &mut output_file).await
+        {
+          eprintln!("Error: {:?}", err)
+        }
       }
     };
 
@@ -223,7 +221,10 @@ fn record_high_water_mark_entry(
 ) -> Result<(), Box<dyn std::error::Error>> {
   let process = entry.process.unwrap();
   let process_exe = process.exe();
-  let name = Path::new(process_exe).file_name().map(|x| x.to_str()).flatten().unwrap_or(process.name());
+  let name = Path::new(process_exe)
+    .file_name()
+    .and_then(|x| x.to_str())
+    .unwrap_or_else(|| process.name());
   let pid = process.pid();
   let title = format!("{name} ({pid})");
   let MemoryStats {
@@ -242,7 +243,7 @@ fn record_high_water_mark_entry(
   )?;
 
   for child_pid in entry.children.iter() {
-    if let Some(child_entry) = process_children.get(&child_pid) {
+    if let Some(child_entry) = process_children.get(child_pid) {
       record_high_water_mark_entry(
         buffer,
         child_entry,
@@ -284,7 +285,7 @@ fn compute_memory_stats(
   let mut process_memory = HashMap::new();
   process_children
     .get(&pid)
-    .map(|entry| compute_aggregate_memory_kib(entry, &process_children, &mut process_memory));
+    .map(|entry| compute_aggregate_memory_kib(entry, process_children, &mut process_memory));
 
   process_memory
 }
@@ -300,7 +301,7 @@ fn compute_aggregate_memory_kib(
   let mut aggregate_kib: u64 = private_kib;
 
   for child_pid in entry.children.iter() {
-    if let Some(child_entry) = process_children.get(&child_pid) {
+    if let Some(child_entry) = process_children.get(child_pid) {
       aggregate_kib += compute_aggregate_memory_kib(child_entry, process_children, process_memory);
     }
   }
