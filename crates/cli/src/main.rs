@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, path::Path, str::FromStr, time::Duration};
+use std::{collections::HashMap, fmt::Write, ops::Deref, path::Path, str::FromStr, time::Duration};
 
 use clap::{Parser, StructOpt};
 use sysinfo::{set_open_files_limit, Pid, Process, ProcessExt, System, SystemExt};
@@ -142,6 +142,8 @@ async fn measure_memory_internal(
   let pid = (pid as PidT).into();
   let mut high_water_mark_kib: u64 = 0;
 
+  let mut buffer = String::new();
+
   loop {
     sys.refresh_processes();
     let processes = sys.processes();
@@ -159,43 +161,68 @@ async fn measure_memory_internal(
         Some(n) if n > 0 => i % n == 0,
         _ => false,
       };
-      if met_thresholds || print_anyway {
-        if met_thresholds {
-          eprintln!(
-            "🌊 gotta-watch-em-all: high water mark reached: {} MiB",
-            aggregate_kib / 1024
-          );
-          high_water_mark_kib = aggregate_kib;
-        } else {
-          eprintln!(
-            "🌊 gotta-watch-em-all: presently at {} MiB",
-            aggregate_kib / 1024,
-          );
-        }
 
-        match print_stats(
-          pid,
-          &process_children,
-          &process_memory,
-          &mut output_file,
-          &options,
-        )
-        .await
-        {
-          Err(err) => eprintln!("Error: {:?}", err),
-          _ => {}
-        };
+      buffer.clear();
+      let msg = if met_thresholds {
+        "high water mark reached"
+      } else {
+        "presently at"
+      };
+
+      writeln!(
+        buffer,
+        "🌊 gotta-watch-em-all: {msg}: {} MiB",
+        aggregate_kib / 1024
+      )
+      .unwrap_or_else(|err| handle_write_err(&mut buffer, err));
+
+      if aggregate_kib > high_water_mark_kib {
+        high_water_mark_kib = aggregate_kib;
+      }
+
+      print_stats(
+        &mut buffer,
+        pid,
+        &process_children,
+        &process_memory,
+        &options,
+      )
+      .await
+      .unwrap_or_else(|err| handle_write_err(&mut buffer, err.deref()));
+
+      if met_thresholds || print_anyway {
+        write_output(&mut output_file, &mut buffer).await?;
       }
     };
     i = i + 1;
 
     select! {
         _ = child_token.cancelled() => {
+            if buffer.len() > 0 {
+              write_output(&mut output_file, &mut buffer).await?;
+            }
+
             return Ok(());
         }
         _ = timer.tick() => {}
     }
   }
+}
+
+async fn write_output(
+  output_file: &mut Option<File>,
+  buffer: &mut String,
+) -> Result<(), Box<dyn std::error::Error>> {
+  match *output_file {
+    Some(ref mut file) => file.write_all(buffer.as_bytes()).await?,
+    None => stderr().write_all(buffer.as_bytes()).await?,
+  }
+
+  Ok(())
+}
+
+fn handle_write_err(buffer: &mut String, err: impl std::error::Error) {
+  writeln!(buffer, "🌊 gotta-watch-em-all: error {}", err).expect("Error writing to buffer")
 }
 
 const SPACE: &str = "";
@@ -207,14 +234,12 @@ pub struct ProcessEntry<'a> {
 }
 
 async fn print_stats<'a>(
+  buffer: &mut String,
   pid: Pid,
   process_children: &HashMap<Pid, ProcessEntry<'a>>,
   process_memory: &HashMap<Pid, MemoryStats>,
-  output: &mut Option<File>,
   options: &Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
-  let mut buffer = String::new();
-
   let title = "process";
   let private_mib = "private ";
   let aggregate_mib = "total ";
@@ -229,21 +254,9 @@ async fn print_stats<'a>(
   // We've reached a high water mark, print useful info. First we'll get all the
   // processes and their individual and aggregate memories:
   if let Some(entry) = process_children.get(&pid) {
-    record_high_water_mark_entry(
-      &mut buffer,
-      entry,
-      process_children,
-      process_memory,
-      0,
-      &options,
-    )?;
+    record_high_water_mark_entry(buffer, entry, process_children, process_memory, 0, &options)?;
   }
   writeln!(buffer)?;
-
-  match output {
-    Some(file) => file.write_all(buffer.as_bytes()).await?,
-    None => stderr().write_all(buffer.as_bytes()).await?,
-  }
 
   Ok(())
 }
