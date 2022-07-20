@@ -67,7 +67,11 @@ struct Options {
   #[structopt(short = 'n', long, display_order = 20)]
   report_every_nth: Option<u8>,
 
-  /// Toggles showing the command line for processes.
+  /// Show free and used memory memory, like process free(1).
+  #[structopt(short = 'f', long)]
+  show_free: bool,
+
+  /// Show command line for processes.
   #[structopt(short = 'c', long)]
   show_command: bool,
 }
@@ -145,7 +149,8 @@ async fn measure_memory_internal(
   let mut buffer = String::new();
 
   loop {
-    sys.refresh_processes();
+    sys.refresh_components_list();
+    sys.refresh_memory();
     let processes = sys.processes();
     let process_children = get_process_children(processes);
     let process_memory = compute_memory_stats(pid, &process_children);
@@ -163,6 +168,7 @@ async fn measure_memory_internal(
       };
 
       buffer.clear();
+
       let msg = if met_thresholds {
         "high water mark reached"
       } else {
@@ -171,7 +177,7 @@ async fn measure_memory_internal(
 
       writeln!(
         buffer,
-        "🌊 gotta-watch-em-all: {msg}: {} MiB",
+        "🌊 gotta-watch-em-all: {msg}: {} MiB used",
         aggregate_kib / 1024
       )
       .unwrap_or_else(|err| handle_write_err(&mut buffer, err));
@@ -190,6 +196,10 @@ async fn measure_memory_internal(
       .await
       .unwrap_or_else(|err| handle_write_err(&mut buffer, err.deref()));
 
+      if options.show_free {
+        write_free_stats(&mut buffer, &sys);
+      }
+
       if met_thresholds || print_anyway {
         write_output(&mut output_file, &mut buffer).await?;
       }
@@ -207,6 +217,27 @@ async fn measure_memory_internal(
         _ = timer.tick() => {}
     }
   }
+}
+
+fn write_free_stats(buffer: &mut String, sys: &System) {
+  // All units in MiB
+  let mtot = sys.total_memory() / 1024;
+  let muse = sys.used_memory() / 1024;
+  let mfre = sys.free_memory() / 1024;
+  let mavl = sys.available_memory() / 1024;
+
+  let stot = sys.total_swap() / 1024;
+  let suse = sys.used_swap() / 1024;
+  let sfre = sys.free_swap() / 1024;
+
+  writeln!(
+    buffer,
+    "\
+🌊                 total        used        free   available
+🌊   Mem:   {mtot:>10}Mi{muse:>10}Mi{mfre:>10}Mi{mavl:>10}Mi
+🌊   Swap:  {stot:>10}Mi{suse:>10}Mi{sfre:>10}Mi",
+  )
+  .unwrap_or_else(|err| handle_write_err(buffer, err));
 }
 
 async fn write_output(
