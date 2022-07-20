@@ -161,19 +161,19 @@ jobs:
         run: sudo apt install -y gcc-arm-linux-gnueabihf
         if: startsWith(matrix.target, 'armv7-unknown-linux-gnueabihf')
 
-      - name: Install cargo-deb
-        if: startsWith(matrix.name, 'linux-')
-        uses: baptiste0928/cargo-install@v1
-        with:
-          crate: cargo-deb
-          version: 1.34.2
+      # - name: Install cargo-deb
+      #   if: startsWith(matrix.name, 'linux-')
+      #   uses: baptiste0928/cargo-install@v1
+      #   with:
+      #     crate: cargo-deb
+      #     version: 1.34.2
 
-      - name: Install cargo-generate-rpm
-        if: startsWith(matrix.name, 'linux-')
-        uses: baptiste0928/cargo-install@v1
-        with:
-          crate: cargo-generate-rpm
-          version: 0.6.0
+      # - name: Install cargo-generate-rpm
+      #   if: startsWith(matrix.name, 'linux-')
+      #   uses: baptiste0928/cargo-install@v1
+      #   with:
+      #     crate: cargo-generate-rpm
+      #     version: 0.6.0
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -209,17 +209,17 @@ jobs:
       - name: Archive (tar)
         if: '! startsWith(matrix.name, ''windows-'')'
         run: tar cavf "$dst.tar.gz" "$dst"
-      - name: Archive (deb)
-        if: startsWith(matrix.name, 'linux-')
-        run: cargo deb -p gotta-watch-em-all --no-build --no-strip --target ${{ matrix.target }} --output "$dst.deb"
-      - name: Archive (rpm)
-        if: startsWith(matrix.name, 'linux-')
-        shell: bash
-        run: |
-          set -euxo pipefail
-          shopt -s globstar
-          cargo generate-rpm -p crates/cli --target "${{ matrix.target }}" --target-dir "target/${{ matrix.target }}"
-          mv target/**/*.rpm "$dst.rpm"
+      # - name: Archive (deb)
+      #   if: startsWith(matrix.name, 'linux-')
+      #   run: cargo deb -p gotta-watch-em-all --no-build --no-strip --target ${{ matrix.target }} --output "$dst.deb"
+      # - name: Archive (rpm)
+      #   if: startsWith(matrix.name, 'linux-')
+      #   shell: bash
+      #   run: |
+      #     set -euxo pipefail
+      #     shopt -s globstar
+      #     cargo generate-rpm -p crates/cli --target "${{ matrix.target }}" --target-dir "target/${{ matrix.target }}"
+      #     mv target/**/*.rpm "$dst.rpm"
       - name: Archive (zip)
         if: startsWith(matrix.name, 'windows-')
         shell: bash
