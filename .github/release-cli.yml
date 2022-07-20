@@ -1,0 +1,307 @@
+name: CLI Release
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    tags:
+      - "cli-v*.*.*"
+
+jobs:
+  info:
+    name: Gather info
+    runs-on: ubuntu-latest
+    outputs:
+      cli_version: ${{ steps.version.outputs.cli_version }}
+      release_notes: ${{ fromJSON(steps.notes.outputs.notes_json) }}
+      announce: ${{ steps.announce.outputs.announce }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Extract version
+        id: version
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          version=$(grep -m1 -F 'version =' Cargo.toml | cut -d\" -f2)
+
+          if [[ -z "$version" ]]; then
+            echo "Error: no version :("
+            exit 1
+          fi
+
+          echo "::set-output name=cli_version::$version"
+
+      - name: Extract release notes
+        id: notes
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          release_commit: ${{ github.event.head_commit.message }}
+        run: |
+          set -euxo pipefail
+          release_pr=$(head -n1 <<< "${release_commit:-}" | grep -oP '(?<=[(]#)\d+(?=[)])')
+          if [[ -z "$release_pr" ]]; then
+            echo "::set-output name=notes_json::null"
+            exit
+          fi
+
+          gh \
+            pr --repo "$GITHUB_REPO" \
+            view "$release_pr" \
+            --json body \
+            --jq '"::set-output name=notes_json::\((.body | split("### Release notes")[1] // "") | tojson)"'
+
+      - name: Make a new announcement post
+        id: announce
+        if: endsWith(steps.version.outputs.cli_version, '.0')
+        run: echo "::set-output name=announce::Announcements"
+        # TODO: append patch release notes as comments on minor version announce discussion
+        # TODO: add link to discussion from patch release notes
+        # TODO: rename minor version announce discussion to be just CLI vX.Y (remove .0)
+
+  build:
+    strategy:
+      matrix:
+        name:
+          - linux-amd64-gnu
+          # - linux-amd64-musl
+          # - linux-i686-musl
+          # - linux-armhf-gnu
+          - linux-arm64-gnu
+          # - linux-arm64-musl
+          - mac-x86-64
+          - mac-arm64
+          - windows-x86-64
+        include:
+          - name: linux-amd64-gnu
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            cross: false
+            experimental: false
+
+          # - name: linux-amd64-musl
+          #   os: ubuntu-latest
+          #   target: x86_64-unknown-linux-musl
+          #   cross: true
+          #   experimental: false
+
+          # - name: linux-i686-musl
+          #   os: ubuntu-latest
+          #   target: i686-unknown-linux-musl
+          #   cross: true
+          #   experimental: true
+
+          # - name: linux-armhf-gnu
+          #   os: ubuntu-latest
+          #   target: armv7-unknown-linux-gnueabihf
+          #   cross: true
+          #   experimental: false
+
+          - name: linux-arm64-gnu
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            cross: true
+            experimental: false
+
+          # - name: linux-arm64-musl
+          #   os: ubuntu-latest
+          #   target: aarch64-unknown-linux-musl
+          #   cross: true
+          #   experimental: true
+
+          - name: mac-x86-64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            cross: false
+            experimental: false
+
+          - name: mac-arm64
+            os: macos-11.0
+            target: aarch64-apple-darwin
+            cross: true
+            experimental: true
+
+          - name: windows-x86-64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            cross: false
+            experimental: false
+
+          #- name: windows-arm64
+          #  os: windows-latest
+          #  target: aarch64-pc-windows-msvc
+          #  cross: true
+          #  experimental: true
+
+    name: Binaries for ${{ matrix.name }}
+    needs: info
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+
+    env:
+      version: ${{ needs.info.outputs.cli_version }}
+      dst: gotta-watch-em-all-${{ needs.info.outputs.cli_version }}-${{ matrix.target }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('Cargo.lock') }}
+
+      - name: Add musl tools
+        run: sudo apt install -y musl musl-dev musl-tools
+        if: endsWith(matrix.target, '-musl')
+      - name: Add aarch-gnu tools
+        run: sudo apt install -y gcc-aarch64-linux-gnu
+        if: startsWith(matrix.target, 'aarch64-unknown-linux')
+      - name: Add arm7hf-gnu tools
+        run: sudo apt install -y gcc-arm-linux-gnueabihf
+        if: startsWith(matrix.target, 'armv7-unknown-linux-gnueabihf')
+
+      - name: Install cargo-deb
+        if: startsWith(matrix.name, 'linux-')
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: cargo-deb
+          version: 1.34.2
+
+      - name: Install cargo-generate-rpm
+        if: startsWith(matrix.name, 'linux-')
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: cargo-generate-rpm
+          version: 0.6.0
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: actions-rs/cargo@v1
+        name: Build
+        with:
+          use-cross: ${{ matrix.cross }}
+          command: build
+          args: --package gotta-watch-em-all --release --locked --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ext=""
+          [[ "${{ matrix.name }}" == windows-* ]] && ext=".exe"
+          bin="target/${{ matrix.target }}/release/gotta-watch-em-all${ext}"
+          objcopy --compress-debug-sections "$bin" || strip "$bin" || true
+
+          mkdir "$dst"
+
+          mkdir -p "target/release"
+          cp "$bin" "target/release/" # workaround for cargo-deb silliness with targets
+
+          cp "$bin" "$dst/"
+          cp -r README.md LICENSE completions doc/{logo.svg,gotta-watch-em-all.1{,.html}} "$dst/"
+
+      - name: Archive (tar)
+        if: '! startsWith(matrix.name, ''windows-'')'
+        run: tar cavf "$dst.tar.gz" "$dst"
+      - name: Archive (deb)
+        if: startsWith(matrix.name, 'linux-')
+        run: cargo deb -p gotta-watch-em-all --no-build --no-strip --target ${{ matrix.target }} --output "$dst.deb"
+      - name: Archive (rpm)
+        if: startsWith(matrix.name, 'linux-')
+        shell: bash
+        run: |
+          set -euxo pipefail
+          shopt -s globstar
+          cargo generate-rpm -p gotta-watch-em-all --target "${{ matrix.target }}" --target-dir "target/${{ matrix.target }}"
+          mv target/**/*.rpm "$dst.rpm"
+      - name: Archive (zip)
+        if: startsWith(matrix.name, 'windows-')
+        shell: bash
+        run: 7z a "$dst.zip" "$dst"
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: builds
+          retention-days: 1
+          path: |
+            gotta-watch-em-all-*.tar.gz
+            gotta-watch-em-all-*.tar.zst
+            gotta-watch-em-all-*.deb
+            gotta-watch-em-all-*.rpm
+            gotta-watch-em-all-*.zip
+
+  sign:
+    needs: [build, info]
+
+    name: Checksum and sign
+    runs-on: ubuntu-latest
+
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install rsign2
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: rsign2
+          version: 0.6.1
+
+      - name: Install b3sum
+        uses: baptiste0928/cargo-install@v1
+        with:
+          crate: b3sum
+          version: 1.3.0
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: builds
+
+      - name: Checksums with BLAKE3
+        run: b3sum gotta-watch-em-all | tee B3SUMS
+
+      - name: Checksums with SHA512
+        run: sha512sum gotta-watch-em-all | tee SHA512SUMS
+
+      - name: Sign checksums
+        shell: bash
+        env:
+          RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
+          version: ${{ needs.info.outputs.cli_version }}
+        run: |
+          set -u
+          echo "$RELEASE_KEY" > release.key
+          set -x
+          for algo in B3 SHA512; do
+            echo | rsign sign \
+              -p .github/workflows/release.pub \
+              -s release.key \
+              -t "gotta-watch-em-all v$version signed with automated key" \
+              -c 'see website for signing information' \
+              -x "${algo}SUMS.auto.minisig" \
+              "${algo}SUMS"
+          done
+          rm release.key
+          cat {B3,SHA512}SUMS.auto.minisig
+
+      - uses: softprops/action-gh-release@50195ba7f6f93d1ac97ba8332a178e008ad176aa
+        with:
+          tag_name: cli-v${{ needs.info.outputs.cli_version }}
+          name: CLI v${{ needs.info.outputs.cli_version }}
+          body: ${{ needs.info.outputs.release_notes }}
+          append_body: true
+          discussion_category_name: ${{ needs.info.outputs.announce }}
+          files: |
+            gotta-watch-em-all-*.tar.gz
+            gotta-watch-em-all-*.tar.zst
+            gotta-watch-em-all-*.deb
+            gotta-watch-em-all-*.rpm
+            gotta-watch-em-all-*.zip
+            *SUMS*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
