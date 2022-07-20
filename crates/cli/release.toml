@@ -1,0 +1,15 @@
+pre-release-commit-message = "release: cli v{{version}}"
+tag-prefix = "cli-"
+tag-message = "gotta-watch-em-all {{version}}"
+
+# We wait until the release CI is done before publishing,
+# because publishing is irreversible, but a release can be
+# reverted a lot more easily.
+publish = false
+
+[[pre-release-replacements]]
+file = "gotta-watch-em-all.exe.manifest"
+search = "^		version=\"[\\d.]+[.]0\""
+replace = "		version=\"{{version}}.0\""
+prerelease = false
+max = 1

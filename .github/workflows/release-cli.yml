@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euxo pipefail
 
-          version=$(grep -m1 -F 'version =' Cargo.toml | cut -d\" -f2)
+          version=$(grep -m1 -F 'version =' crates/cli/Cargo.toml | cut -d\" -f2)
 
           if [[ -z "$version" ]]; then
             echo "Error: no version :("
@@ -218,7 +218,7 @@ jobs:
         run: |
           set -euxo pipefail
           shopt -s globstar
-          cargo generate-rpm -p gotta-watch-em-all --target "${{ matrix.target }}" --target-dir "target/${{ matrix.target }}"
+          cargo generate-rpm -p crates/cli --target "${{ matrix.target }}" --target-dir "target/${{ matrix.target }}"
           mv target/**/*.rpm "$dst.rpm"
       - name: Archive (zip)
         if: startsWith(matrix.name, 'windows-')
@@ -263,10 +263,10 @@ jobs:
           name: builds
 
       - name: Checksums with BLAKE3
-        run: b3sum gotta-watch-em-all | tee B3SUMS
+        run: b3sum gotta-watch-em-all-* | tee B3SUMS
 
       - name: Checksums with SHA512
-        run: sha512sum gotta-watch-em-all | tee SHA512SUMS
+        run: sha512sum gotta-watch-em-all-* | tee SHA512SUMS
 
       - name: Sign checksums
         shell: bash
