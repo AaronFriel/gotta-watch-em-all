@@ -22,3 +22,17 @@ tokio-util = "0.6.9"
 
 [build-dependencies]
 embed-resource = "1.6.1"
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/cli-v{ version }/gotta-watch-em-all-{ version }-{ target }.tar.gz"
+bin-dir = "watchexec-{ version }-{ target }/{ bin }{ format }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/cli-v{ version }/gotta-watch-em-all-{ version }-{ target }.zip"
+pkg-fmt = "zip"
+
+# Omitted, but if used would be derived from configurationed used in github.com/watchexec/watchexec
+# [package.metadata.deb]
+# [package.metadata.generate-rpm]
+# [package.metadata.generate-rpm.requires]
