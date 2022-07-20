@@ -1,7 +1,6 @@
-use std::{collections::HashMap, fmt::Write, path::Path, time::Duration};
-use std::{collections::HashMap, fmt::Write, path::Path, time::Duration, str::FromStr};
+use std::{collections::HashMap, fmt::Write, path::Path, str::FromStr, time::Duration};
 
-use structopt::{paw, StructOpt};
+use clap::{Parser, StructOpt};
 use sysinfo::{set_open_files_limit, Pid, Process, ProcessExt, System, SystemExt};
 use tokio::{
   fs::File,
@@ -32,8 +31,8 @@ cfg_if::cfg_if! {
 /// Run a process and monitor the memory usage of the process tree, logging to a
 /// file or stdout. When a high water mark is reached, depending on options
 /// provided, the process tree and memory usage will be written to output.
-#[derive(StructOpt, Debug, Clone)]
-#[structopt(name = "gotta-watch-em-all")]
+#[derive(Parser, Debug, Clone)]
+#[structopt(name = "gotta-watch-em-all", trailing_var_arg = true)]
 pub struct ProgramArgs {
   /// Output file, - or absent for stderr.
   #[structopt(short, long)]
@@ -42,47 +41,47 @@ pub struct ProgramArgs {
   #[structopt(flatten)]
   options: Options,
 
-  /// Program to run
-  #[structopt()]
-  program: String,
-
-  /// Program arguments
-  #[structopt(raw(true))]
-  args: Vec<String>,
+  /// Command to run
+  #[structopt(required = true)]
+  command: Vec<String>,
 }
 
 #[derive(StructOpt, Debug, Clone)]
 struct Options {
   /// The minimum increase, in kilobytes, over the high water mark required
   /// to output stats.
-  #[structopt(short = "a", long, default_value = "1024")]
+  #[structopt(short = 'a', long, default_value = "1024", display_order = 10)]
   threshold_absolute: u64,
 
   /// The minimum increase, as a percentage, over the high water mark required
   /// to output stats.
-  #[structopt(short = "r", long, default_value = "0")]
+  #[structopt(short = 'r', long, default_value = "0", display_order = 10)]
   threshold_relative: f64,
 
   /// How frequently, in milliseconds, to check memory stats.
-  #[structopt(short = "i", long, default_value = "250")]
+  #[structopt(short = 'i', long, default_value = "250", display_order = 20)]
   check_interval: u64,
 
   /// The minimum number of intervals to wait between reporting memory stats
   /// without reaching a high water mark.
-  #[structopt(short = "n", long)]
+  #[structopt(short = 'n', long, display_order = 20)]
   report_every_nth: Option<u8>,
 
-  #[structopt(short = "c", long)]
-  print_cmd: bool,
+  /// Toggles showing the command line for processes.
+  #[structopt(short = 'c', long)]
+  show_command: bool,
 }
 
-#[paw::main]
 #[tokio::main]
-async fn main(args: ProgramArgs) -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+  let args = ProgramArgs::parse();
+
   set_open_files_limit(0);
 
-  let mut spawned_process = tokio::process::Command::new(args.program)
-    .args(args.args)
+  let program = args.command.first().unwrap();
+
+  let mut spawned_process = tokio::process::Command::new(program)
+    .args(&args.command[1..])
     .kill_on_drop(true)
     .spawn()?;
 
@@ -282,23 +281,24 @@ fn record_high_water_mark_entry(
     width = 30 - depth * 2,
   )?;
 
-  if options.print_cmd {
+  if options.show_command {
     let mut line_buffer = String::from_str("  ")?;
     let cmd = process.cmd();
 
-    let mut clear_buffer = |line_buffer: &mut String, min_length: usize| -> Result<(), Box<dyn std::error::Error>> {
-      if line_buffer.len() > min_length {
-        writeln!(
-          buffer,
-          "🌊 {SPACE:<indent$}{line_buffer}",
-          indent = depth * 2,
-        )?;
-        line_buffer.clear();
-        write!(line_buffer, "    ")?;
-      }
+    let mut clear_buffer =
+      |line_buffer: &mut String, min_length: usize| -> Result<(), Box<dyn std::error::Error>> {
+        if line_buffer.len() > min_length {
+          writeln!(
+            buffer,
+            "🌊 {SPACE:<indent$}{line_buffer}",
+            indent = depth * 2,
+          )?;
+          line_buffer.clear();
+          write!(line_buffer, "    ")?;
+        }
 
-      Ok(())
-    };
+        Ok(())
+      };
 
     for arg in cmd {
       clear_buffer(&mut line_buffer, 100)?;
