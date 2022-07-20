@@ -13,12 +13,12 @@ edition = "2021"
 
 [dependencies]
 cfg-if = "1.0.0"
+clap = { version = "3.2.13", features = ["derive"] }
 futures = "0.3.19"
 libc = "0.2.113"
-structopt = { version = "0.3.26", features = ["paw"] }
-sysinfo = "0.23.0"
+sysinfo = "0.24.7"
 tokio = { version = "1.15.0", features = ["full"] }
-tokio-util = "0.6.9"
+tokio-util = "0.7.1"
 
 [build-dependencies]
 embed-resource = "1.6.1"

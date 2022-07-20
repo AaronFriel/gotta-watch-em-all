@@ -2,31 +2,32 @@
 
 Executes a process with given arguments and monitors, logs when memory usage grows to a new peak.
 
-Example:
+Example running with the `-c` option to print full commands:
 
 ```
-cargo run -- cargo -- build --release
-   Compiling gotta-watch-em-all v0.1.0 (C:\Users\aaron\c\gotta-watch-em-all)
-    Finished dev [unoptimized + debuginfo] target(s) in 1.27s
-     Running `target\debug\gotta-watch-em-all.exe cargo -- build --release`
-   Compiling gotta-watch-em-all v0.1.0 (C:\Users\aaron\c\gotta-watch-em-all)
-🌊 gotta-watch-em-all: Reached a new high water mark of 28904 KiB, 28904 greater than before!
-🌊 process                                                    private KiB    total KiB
-🌊 cargo.exe (7776)                                               8884KiB     28904KiB
-🌊   cargo.exe (16476)                                           18419KiB     20020KiB
-🌊     rustc.exe (15672)                                          1601KiB      1601KiB
+$ gotta-watch-em-all -c -- cargo build --release
+   Compiling gotta-watch-em-all v0.1.2 (/home/friel/c/gotta-watch-em-all)
+    Finished dev [unoptimized + debuginfo] target(s) in 1.94s
+     Running `target/debug/gotta-watch-em-all -c -- cargo build --release`
+🌊 gotta-watch-em-all: high water mark reached: 12 MiB
+🌊 process                                                                          private MiB    total MiB
+🌊 cargo (102478)                                                                         12MiB        12MiB
+🌊    cargo build --release
 
-🌊 gotta-watch-em-all: Reached a new high water mark of 56540 KiB, 27636 greater than before!
-🌊 process                                                    private KiB    total KiB
-🌊 cargo.exe (7776)                                               8884KiB     56540KiB
-🌊   cargo.exe (16476)                                           18477KiB     47656KiB
-🌊     rustc.exe (15672)                                         29179KiB     29179KiB
+🌊 gotta-watch-em-all: high water mark reached: 15 MiB
+🌊 process                                                                          private MiB    total MiB
+🌊 cargo (102478)                                                                         15MiB        15MiB
+🌊    cargo build --release
 
-🌊 gotta-watch-em-all: Reached a new high water mark of 93179 KiB, 36639 greater than before!
-🌊 process                                                    private KiB    total KiB
-🌊 cargo.exe (7776)                                               8884KiB     93179KiB
-🌊   cargo.exe (16476)                                           18477KiB     84295KiB
-🌊     rustc.exe (15672)                                         65818KiB     65818KiB
+   Compiling gotta-watch-em-all v0.1.2 (/home/friel/c/gotta-watch-em-all)
+🌊 gotta-watch-em-all: high water mark reached: 125 MiB-watch-em-all(bin)
+🌊 process                                                                          private MiB    total MiB
+🌊 cargo (102478)                                                                         22MiB       125MiB
+🌊    cargo build --release
+🌊   rustc (102490)                                                                      103MiB       103MiB
+🌊      /home/friel/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name gotta_watch_em_all
+🌊        --edition=2021 src/main.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat
+...
 ```
 
 ## Options
@@ -35,27 +36,39 @@ Can output to a separate file, rather than stderr, and there are options for tun
 for writing out the process tree.
 
 ```
-gotta-watch-em-all 0.1.0
-Run a process and monitor the memory usage of the process tree, logging to a file or stdout. When a high water mark is
-reached, depending on options provided, the process tree and memory usage will be written to output
+gotta-watch-em-all
+Run a process and monitor the memory usage of the process tree, logging to a file or stdout. When a
+high water mark is reached, depending on options provided, the process tree and memory usage will be
+written to output
 
 USAGE:
-    gotta-watch-em-all.exe [OPTIONS] <program> [-- <args>...]
-
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-    -o, --out <out>                                  Output file, - or absent for stderr
-    -a, --threshold-absolute <threshold-absolute>
-            The minimum increase, as a percentage, over the high water mark required to output stats [default: 1024]
-
-    -r, --threshold-relative <threshold-relative>
-            The minimum increase, in kilobytes, over the high water mark required to output stats [default: 0]
-
+    gotta-watch-em-all [OPTIONS] <COMMAND>...
 
 ARGS:
-    <program>    Program to run
-    <args>...    Program arguments
+    <COMMAND>...    Command to run
+
+OPTIONS:
+    -a, --threshold-absolute <THRESHOLD_ABSOLUTE>
+            The minimum increase, in kilobytes, over the high water mark required to output stats
+            [default: 1024]
+
+    -r, --threshold-relative <THRESHOLD_RELATIVE>
+            The minimum increase, as a percentage, over the high water mark required to output stats
+            [default: 0]
+
+    -i, --check-interval <CHECK_INTERVAL>
+            How frequently, in milliseconds, to check memory stats [default: 250]
+
+    -n, --report-every-nth <REPORT_EVERY_NTH>
+            The minimum number of intervals to wait between reporting memory stats without reaching
+            a high water mark
+
+    -c, --show-command
+            Toggles showing the command line for processes
+
+    -h, --help
+            Print help information
+
+    -o, --out <OUT>
+            Output file, - or absent for stderr
 ```
