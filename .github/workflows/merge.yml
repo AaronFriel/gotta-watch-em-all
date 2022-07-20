@@ -47,4 +47,4 @@ jobs:
         with:
           command: test
       - name: Check that CLI runs
-        run: cargo run -p gotta-watch-em-all -- -1 echo
+        run: cargo run -p gotta-watch-em-all -- echo -- 1

@@ -7,7 +7,7 @@ on:
         required: true
         type: choice
         options:
-          - '.'
+          - cli
       version:
         description: Version to release
         required: true
@@ -31,7 +31,11 @@ jobs:
         run: |
           set -euxo pipefail
 
-          crate_path="${{ inputs.crate }}"
+          if [[ "${{ inputs.crate }}" == filterer-* ]]; then
+            crate_path="crates/$(tr '-' '/' <<< "${{ inputs.crate }}")"
+          else
+            crate_path="crates/${{ inputs.crate }}"
+          fi
 
           pushd "$crate_path"
           crate_name=$(head Cargo.toml -n2 | grep name | cut -d '"' -f2)
