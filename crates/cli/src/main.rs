@@ -194,11 +194,11 @@ async fn measure_memory_internal(
         write_output(&mut output_file, &mut buffer).await?;
       }
     };
-    i = i + 1;
+    i += 1;
 
     select! {
         _ = child_token.cancelled() => {
-            if buffer.len() > 0 {
+            if !buffer.is_empty() {
               write_output(&mut output_file, &mut buffer).await?;
             }
 
@@ -254,7 +254,7 @@ async fn print_stats<'a>(
   // We've reached a high water mark, print useful info. First we'll get all the
   // processes and their individual and aggregate memories:
   if let Some(entry) = process_children.get(&pid) {
-    record_high_water_mark_entry(buffer, entry, process_children, process_memory, 0, &options)?;
+    record_high_water_mark_entry(buffer, entry, process_children, process_memory, 0, options)?;
   }
   writeln!(buffer)?;
 
@@ -273,9 +273,8 @@ fn record_high_water_mark_entry(
   let process_exe = process.exe();
   let name = Path::new(process_exe)
     .file_name()
-    .map(|x| x.to_str())
-    .flatten()
-    .unwrap_or(process.name());
+    .and_then(|x| x.to_str())
+    .unwrap_or_else(|| process.name());
   let pid = process.pid();
   let title = format!("{name} ({pid})");
   let MemoryStats {
