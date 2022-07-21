@@ -149,7 +149,7 @@ async fn measure_memory_internal(
   let mut buffer = String::new();
 
   loop {
-    sys.refresh_components_list();
+    sys.refresh_processes();
     sys.refresh_memory();
     let processes = sys.processes();
     let process_children = get_process_children(processes);

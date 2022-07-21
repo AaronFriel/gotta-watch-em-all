@@ -66,6 +66,9 @@ OPTIONS:
     -c, --show-command
             Toggles showing the command line for processes
 
+    -f, --show-free
+            Show free and used memory memory, like process free(1)
+
     -h, --help
             Print help information
 
