@@ -17,7 +17,7 @@ clap = { version = "3.2.13", features = ["derive"] }
 futures = "0.3.19"
 libc = "0.2.113"
 sysinfo = "0.24.7"
-tokio = { version = "1.15.0", features = ["full"] }
+tokio = { version = "1.20.4", features = ["full"] }
 tokio-util = "0.7.1"
 
 [build-dependencies]
