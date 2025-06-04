@@ -1,10 +1,10 @@
-use std::{collections::HashMap, fmt::Write, ops::Deref, path::Path, str::FromStr, time::Duration};
+use std::{collections::HashMap, fmt::Write, ops::Deref, str::FromStr, time::Duration};
 
-use clap::{Parser, StructOpt};
-use sysinfo::{set_open_files_limit, Pid, Process, ProcessExt, System, SystemExt};
+use clap::{Args, Parser};
+use sysinfo::{Pid, Process, ProcessesToUpdate, System, set_open_files_limit};
 use tokio::{
   fs::File,
-  io::{stderr, AsyncWriteExt},
+  io::{AsyncWriteExt, stderr},
   select, time,
 };
 use tokio_util::sync::CancellationToken;
@@ -32,47 +32,47 @@ cfg_if::cfg_if! {
 /// file or stdout. When a high water mark is reached, depending on options
 /// provided, the process tree and memory usage will be written to output.
 #[derive(Parser, Debug, Clone)]
-#[structopt(name = "gotta-watch-em-all", trailing_var_arg = true)]
+#[command(name = "gotta-watch-em-all", trailing_var_arg = true)]
 pub struct ProgramArgs {
   /// Output file, - or absent for stderr.
-  #[structopt(short, long)]
+  #[arg(short, long)]
   out: Option<String>,
 
-  #[structopt(flatten)]
+  #[command(flatten)]
   options: Options,
 
   /// Command to run
-  #[structopt(required = true)]
+  #[arg(required = true)]
   command: Vec<String>,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 struct Options {
   /// The minimum increase, in kilobytes, over the high water mark required
   /// to output stats.
-  #[structopt(short = 'a', long, default_value = "1024", display_order = 10)]
+  #[arg(short = 'a', long, default_value = "1024", display_order = 10)]
   threshold_absolute: u64,
 
   /// The minimum increase, as a percentage, over the high water mark required
   /// to output stats.
-  #[structopt(short = 'r', long, default_value = "0", display_order = 10)]
+  #[arg(short = 'r', long, default_value = "0", display_order = 10)]
   threshold_relative: f64,
 
   /// How frequently, in milliseconds, to check memory stats.
-  #[structopt(short = 'i', long, default_value = "250", display_order = 20)]
+  #[arg(short = 'i', long, default_value = "250", display_order = 20)]
   check_interval: u64,
 
   /// The minimum number of intervals to wait between reporting memory stats
   /// without reaching a high water mark.
-  #[structopt(short = 'n', long, display_order = 20)]
+  #[arg(short = 'n', long, display_order = 20)]
   report_every_nth: Option<u8>,
 
   /// Show free and used memory memory, like process free(1).
-  #[structopt(short = 'f', long)]
+  #[arg(short = 'f', long)]
   show_free: bool,
 
   /// Show command line for processes.
-  #[structopt(short = 'c', long)]
+  #[arg(short = 'c', long)]
   show_command: bool,
 }
 
@@ -143,13 +143,13 @@ async fn measure_memory_internal(
   let mut timer = time::interval(Duration::from_millis(options.check_interval));
   let mut i = 0;
   let mut sys = System::new_all();
-  let pid = (pid as PidT).into();
+  let pid = Pid::from(pid as usize);
   let mut high_water_mark_kib: u64 = 0;
 
   let mut buffer = String::new();
 
   loop {
-    sys.refresh_processes();
+    sys.refresh_processes(ProcessesToUpdate::All, true);
     sys.refresh_memory();
     let processes = sys.processes();
     let process_children = get_process_children(processes);
@@ -301,11 +301,11 @@ fn record_high_water_mark_entry(
   options: &Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let process = entry.process.unwrap();
-  let process_exe = process.exe();
-  let name = Path::new(process_exe)
-    .file_name()
-    .and_then(|x| x.to_str())
-    .unwrap_or_else(|| process.name());
+  let name = process
+    .exe()
+    .and_then(|p| p.file_name().and_then(|x| x.to_str()))
+    .map(String::from)
+    .unwrap_or_else(|| process.name().to_string_lossy().into_owned());
   let pid = process.pid();
   let title = format!("{name} ({pid})");
   let MemoryStats {
@@ -345,7 +345,7 @@ fn record_high_water_mark_entry(
 
     for arg in cmd {
       clear_buffer(&mut line_buffer, 100)?;
-      write!(line_buffer, " {arg}")?;
+      write!(line_buffer, " {}", arg.to_string_lossy())?;
     }
     clear_buffer(&mut line_buffer, 0)?;
   }

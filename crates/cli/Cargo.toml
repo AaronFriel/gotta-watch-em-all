@@ -13,15 +13,15 @@ edition = "2021"
 
 [dependencies]
 cfg-if = "1.0.0"
-clap = { version = "3.2.13", features = ["derive"] }
-futures = "0.3.19"
-libc = "0.2.113"
-sysinfo = "0.24.7"
-tokio = { version = "1.15.0", features = ["full"] }
-tokio-util = "0.7.1"
+clap = { version = "4.5.39", features = ["derive"] }
+futures = "0.3.31"
+libc = "0.2.172"
+sysinfo = "0.35.2"
+tokio = { version = "1.45.1", features = ["full"] }
+tokio-util = "0.7.15"
 
 [build-dependencies]
-embed-resource = "1.6.1"
+embed-resource = "3.0.3"
 
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/cli-v{ version }/gotta-watch-em-all-{ version }-{ target }.tar.gz"
