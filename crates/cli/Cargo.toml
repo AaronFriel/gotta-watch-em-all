@@ -13,11 +13,11 @@ edition = "2021"
 
 [dependencies]
 cfg-if = "1.0.0"
-clap = { version = "3.2.13", features = ["derive"] }
+clap = { version = "4.5.39", features = ["derive"] }
 futures = "0.3.19"
 libc = "0.2.113"
 sysinfo = "0.24.7"
-tokio = { version = "1.15.0", features = ["full"] }
+tokio = { version = "1.20.3", features = ["full"] }
 tokio-util = "0.7.1"
 
 [build-dependencies]
