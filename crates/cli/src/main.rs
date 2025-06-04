@@ -1,7 +1,7 @@
-use std::{collections::HashMap, fmt::Write, ops::Deref, path::Path, str::FromStr, time::Duration};
+use std::{collections::HashMap, fmt::Write, ops::Deref, str::FromStr, time::Duration};
 
 use clap::{Args, Parser};
-use sysinfo::{Pid, Process, ProcessExt, System, SystemExt, set_open_files_limit};
+use sysinfo::{Pid, Process, ProcessesToUpdate, System, set_open_files_limit};
 use tokio::{
   fs::File,
   io::{AsyncWriteExt, stderr},
@@ -143,13 +143,13 @@ async fn measure_memory_internal(
   let mut timer = time::interval(Duration::from_millis(options.check_interval));
   let mut i = 0;
   let mut sys = System::new_all();
-  let pid = (pid as PidT).into();
+  let pid = Pid::from(pid as usize);
   let mut high_water_mark_kib: u64 = 0;
 
   let mut buffer = String::new();
 
   loop {
-    sys.refresh_processes();
+    sys.refresh_processes(ProcessesToUpdate::All, true);
     sys.refresh_memory();
     let processes = sys.processes();
     let process_children = get_process_children(processes);
@@ -301,11 +301,11 @@ fn record_high_water_mark_entry(
   options: &Options,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let process = entry.process.unwrap();
-  let process_exe = process.exe();
-  let name = Path::new(process_exe)
-    .file_name()
-    .and_then(|x| x.to_str())
-    .unwrap_or_else(|| process.name());
+  let name = process
+    .exe()
+    .and_then(|p| p.file_name().and_then(|x| x.to_str()))
+    .map(String::from)
+    .unwrap_or_else(|| process.name().to_string_lossy().into_owned());
   let pid = process.pid();
   let title = format!("{name} ({pid})");
   let MemoryStats {
@@ -345,7 +345,7 @@ fn record_high_water_mark_entry(
 
     for arg in cmd {
       clear_buffer(&mut line_buffer, 100)?;
-      write!(line_buffer, " {arg}")?;
+      write!(line_buffer, " {}", arg.to_string_lossy())?;
     }
     clear_buffer(&mut line_buffer, 0)?;
   }
